@@ -138,6 +138,13 @@ except Exception as e:
 # 대시보드 레이아웃 & 필터
 st.sidebar.header("필터")
 
+# 성별 필터
+if "sex" in welfare.columns:
+    value_list = ["All"] + sorted(welfare["sex"].dropna().unique().tolist())
+    select_sex = st.sidebar.selectbox("성별", value_list, index=0)
+else:
+    select_sex = "All"
+
 # 연령대 필터
 if "age_group" in welfare.columns:
     age_group_list = ["All"] + sorted(welfare["age_group"].dropna().unique().tolist())
@@ -258,5 +265,7 @@ with st.expander("💡 추가 분석 팁"):
     - **지역별 분석**: `region_code`를 활용하여 거주 지역에 따른 생활 수준 차이를 분석할 수 있습니다.
     - **상세 데이터 확인**: 사이드바 필터를 조정하여 특정 그룹의 데이터를 심층적으로 확인해 보세요.
     """)
+
+
 
 
