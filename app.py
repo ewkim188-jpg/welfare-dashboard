@@ -7,27 +7,44 @@ from PIL import Image
 import os
 
 # 웹 페이지 타이틀 설정
+def get_file_path(default_path):
+    """폴더 경로와 루트 경로 중 존재하는 파일을 반환"""
+    if os.path.exists(default_path):
+        return default_path
+    base_name = os.path.basename(default_path)
+    if os.path.exists(base_name):
+        return base_name
+    return default_path
+
 try:
-    img = Image.open("image/sample.png")
+    img_path = get_file_path("image/sample.png")
+    img = Image.open(img_path)
     st.set_page_config(
         layout="wide", page_title="복지패널 데이터분석 시각화 대시보드", page_icon=img
     )
-except FileNotFoundError:
+except Exception:
     st.set_page_config(layout="wide", page_title="복지패널 데이터분석 시각화 대시보드")
-    st.warning("경고: 'image/sample.png' 파일을 찾을 수 없습니다. 아이콘 없이 대시보드를 실행합니다.")
 
 # 한글 폰트 지정 (Windows 환경)
-plt.rc("font", family="Malgun Gothic")
+# Streamlit Cloud(Linux) 환경에서도 한글이 나오도록 폰트 설정 추가
+if os.name == 'posix': # 리눅스/맥
+    plt.rc("font", family="NanumGothic")
+else: # 윈도우
+    plt.rc("font", family="Malgun Gothic")
+
 # 마이너스 기호 깨짐 방지
 plt.rcParams["axes.unicode_minus"] = False
 
 # 데이터 로드 함수
 @st.cache_data
 def load_welfare(sav_path: str):
-    if not os.path.exists(sav_path):
-        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {sav_path}")
+    # 입력된 경로가 없으면 루트에서 시도
+    actual_path = get_file_path(sav_path)
+    
+    if not os.path.exists(actual_path):
+        raise FileNotFoundError(f"파일을 찾을 수 없습니다: {actual_path}")
         
-    raw_welfare = pd.read_csv(sav_path)
+    raw_welfare = pd.read_csv(actual_path)
     welfare = raw_welfare.copy()
     welfare = welfare.rename(
         columns={
@@ -71,18 +88,28 @@ def load_welfare(sav_path: str):
             welfare["job_code"] == 9999, np.nan, welfare["job_code"]
         )
         try:
+            codebook_path = get_file_path("data/welfare_2015_codebook.xlsx")
             job_list = pd.read_excel(
-                "data/welfare_2015_codebook.xlsx", sheet_name="직종코드"
+                codebook_path, sheet_name="직종코드"
             )
+            # 직업 코드 데이터에 'job' 컬럼 이름 확인 (codebook에 따라 다를 수 있음)
+            if 'job' not in job_list.columns and '직종' in job_list.columns:
+                job_list = job_list.rename(columns={'직종': 'job'})
+            elif 'job' not in job_list.columns and job_list.shape[1] > 1:
+                 # 두 번째 컬럼을 job으로 가정 (보통 코드, 이름 순이므로)
+                job_list.columns = [job_list.columns[0], 'job']
+
             welfare = welfare.merge(job_list, how="left", on="job_code")
-        except FileNotFoundError:
-            st.info("안내: 'data/welfare_2015_codebook.xlsx' 파일이 없어 직업명을 불러올 수 없습니다.")
+        except Exception:
+            pass
 
     return welfare
 
 # 사이드바
 st.sidebar.title("데이터 로드")
 default_data_path = "data/welfare_2015.csv"
+if not os.path.exists(default_data_path) and os.path.exists("welfare_2015.csv"):
+    default_data_path = "welfare_2015.csv"
 data_path = st.sidebar.text_input("데이터 파일 경로", value=default_data_path)
 
 if st.sidebar.button("데이터 다시 로드"):
@@ -231,3 +258,5 @@ with st.expander("💡 추가 분석 팁"):
     - **지역별 분석**: `region_code`를 활용하여 거주 지역에 따른 생활 수준 차이를 분석할 수 있습니다.
     - **상세 데이터 확인**: 사이드바 필터를 조정하여 특정 그룹의 데이터를 심층적으로 확인해 보세요.
     """)
+
+
